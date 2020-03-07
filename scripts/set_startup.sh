@@ -30,7 +30,8 @@ Options:
 	     case it crashes (default)
 	-s : runs the program in single-shot mode.
 	-c : passes command-line arguments to the Bela program. Make sure
-	     you enclose the argument string in quotes."
+	     you enclose the argument string in quotes.
+	-m : passes arguments to the Makefile before the run target."
 }
 
 ENABLE_STARTUP=1
@@ -40,6 +41,10 @@ do
 		-c)
 			shift;
 			COMMAND_ARGS="$1";
+		;;
+		-m)
+			shift;
+			BBB_MAKEFILE_OPTIONS="$BBB_MAKEFILE_OPTIONS $1";
 		;;
 		-l)
 			RUN_IN_LOOP=1
@@ -80,7 +85,7 @@ check_project_exists $BBB_PROJECT_NAME || {
 	list_available_projects
 	exit 1
 }
-MAKE_COMMAND="make --no-print-directory -C $BBB_BELA_HOME PROJECT=$BBB_PROJECT_NAME CL=\"$COMMAND_ARGS\""
+MAKE_COMMAND="make --no-print-directory -C $BBB_BELA_HOME PROJECT=$BBB_PROJECT_NAME CL=\"$COMMAND_ARGS\" $BBB_MAKEFILE_OPTIONS"
 if [ $ENABLE_STARTUP -eq 0 ]
 then
     ssh $BBB_ADDRESS "$MAKE_COMMAND nostartup"

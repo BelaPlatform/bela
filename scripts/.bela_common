@@ -47,6 +47,17 @@ check_rsync(){
 	fi
 }
 
+check_if_sources_copied(){
+	RSYNC_OUTPUT=$(</dev/stdin)
+	# rsync output is printed normally
+	[ -n "$RSYNC_OUTPUT" ] && echo "$RSYNC_OUTPUT"
+	EXTENSION_LIST='\.cpp\|\.c\|\.S\|\.pd\|\.scd'
+	FOUND_EXTENSIONS=$(echo "$RSYNC_OUTPUT" | grep "$EXTENSION_LIST")
+	# possibly could be handled automatically (ex. deleting associated .o files if they exist)
+	[ -z "$FOUND_EXTENSIONS" ] && echo "Warning: no new source files were copied to the board"
+	return 0
+}
+
 folder_has_changed(){
 	[ -z "$2" ] && { echo "Error: folder_has_changed(folder, reference, [filter])"; return 1; }
 	[ -z "$3" ] && FILTER="." || FILTER="$3"
