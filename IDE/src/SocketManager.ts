@@ -75,7 +75,9 @@ async function init_message(socket: SocketIO.Socket){
 		settings 	: await ide_settings.read(),
 		boot_project 	: await boot_project.get_boot_project(),
 		board_string	: await IDE.board_detect().catch(e => console.log('error in board detect', e)),
-		xenomai_version : await IDE.get_xenomai_version()
+		xenomai_version : await IDE.get_xenomai_version(),
+		bela_image_version : await IDE.get_bela_image_version(),
+		bela_core_version : await IDE.get_bela_core_version(),
 //	status : await process_manager.status()
 	};
 	socket.emit('init', message);

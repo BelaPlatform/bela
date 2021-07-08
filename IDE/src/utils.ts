@@ -10,6 +10,15 @@ export class File_Descriptor {
 	children: File_Descriptor[] | undefined = undefined;
 }
 
+export interface Bela_Core_Version_Data {
+	date: string;
+	fileName: string;
+	method: string;
+	success: number;
+	git_desc: string;
+	log: string;
+}
+
 export interface Init_Message{
 	projects	: string[];
   examples	: File_Descriptor[];
@@ -17,6 +26,8 @@ export interface Init_Message{
 	settings	: any;
 	boot_project	: string;
 	board_string	: string;
+	bela_image_version : string;
+	bela_core_version : Bela_Core_Version_Data;
 	xenomai_version	: string;
 }
 

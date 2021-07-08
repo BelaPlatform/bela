@@ -3,6 +3,7 @@
 /dev/node_modules
 /IDE/settings.json
 /IDE/node_modules
+/IDE/frontend-dev/node_modules
 /ide-redesign/node_modules
 /projects/
 /tmp/

@@ -34,20 +34,19 @@ class FileView extends View {
       project: ""
     };
 
+		var overlayActiveClass = 'active-drag-upload';
 		// drag and drop file upload on editor
-    var overlay = $('[data-overlay]');
-    overlay.on('dragleave', (e) => {
-      overlay.removeClass('drag-upload')
-             .removeClass('active');
-    });
+		var overlay = $('[data-overlay]');
+		overlay.on('dragleave', (e) => {
+			overlay.removeClass(overlayActiveClass);
+		});
 		$('body').on('dragenter dragover drop', (e) => {
 			if(!isDragEvent(e, "Files"))
 				return;
 			e.stopPropagation();
 			e.preventDefault();
       if (e.type == 'dragenter') {
-        overlay.addClass('active')
-               .addClass('drag-upload');
+        overlay.addClass(overlayActiveClass);
       }
 			if (e.type === 'drop'){
 				for (var i = 0; i < e.originalEvent.dataTransfer.files.length; i++){
@@ -58,7 +57,7 @@ class FileView extends View {
             overlay.addClass('no');
             setTimeout(function(){
               overlay.removeClass('no')
-                     .removeClass('drag-upload');
+                     .removeClass(overlayActiveClass);
               that.uploadSizeError();
             }, 1500);
             return false;
@@ -67,8 +66,7 @@ class FileView extends View {
           }
           if (i == e.originalEvent.dataTransfer.files.length - 1) {
             setTimeout(function(){
-              overlay.removeClass('active')
-                     .removeClass('drag-upload')
+              overlay.removeClass(overlayActiveClass)
                      .removeClass('no');
             }, 1500);
           }

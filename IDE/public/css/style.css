@@ -806,6 +806,9 @@ select.dropdown-num {
   #pd-svg-parent.active {
     display: block; }
 
+#editor .editor_read_only {
+  background: #fdd; }
+
 ul.projectManager {
   list-style: none;
   margin: 0;
@@ -1251,18 +1254,25 @@ ul dl {
         background-color: #ff5e5b;
         border: 1px solid #ff5e5b; }
 
-#overlay.active {
-  background: rgba(0, 0, 0, 0.3);
+#overlay.active-popup {
   height: 100vh;
   left: 0;
   position: absolute;
   top: 0;
   width: 100vw;
-  z-index: 9998; }
-  #overlay.active.drag-upload {
-    background: rgba(0, 255, 122, 0.3); }
-    #overlay.active.drag-upload.no {
-      background: rgba(255, 0, 0, 0.3); }
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.3); }
+
+#overlay.active-drag-upload {
+  height: 100vh;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100vw;
+  z-index: 9998;
+  background: rgba(0, 255, 122, 0.3); }
+  #overlay.active-drag-upload.no {
+    background: rgba(255, 0, 0, 0.3); }
 
 ::-webkit-scrollbar {
   width: 12px; }

@@ -1,4 +1,5 @@
 {
+    "locale": "en",
 	"popups": {
     "generic": {
       "cancel": "Cancel"
@@ -93,10 +94,16 @@
 			"text": "Bela was born out of research at Queen Mary University of London. It is developed and supported by the Bela team, and sold by Augmented Instruments Ltd in London, UK. For more information, please visit bela.io.",
 			"button": "Close"
 		},
-		"file_changed": {
-			"title": "File changed on disk",
-			"text": "Would you like to reload?",
-			"button": "Reload"
+		"version": {
+			"title": "Version details",
+			"image_version_label": "Image: ",
+			"core_version_label": "Core code: ",
+			"textTemplateSuccess": [ "Last updated on '{0}'", "from file '{0}'", "via '{0}'", "Update was successful"],
+			"textTemplateFailed": [ "Last attempted update on '{0}'", "from file '{0}'", "via '{0}'", "Update failed"],
+			"textTemplateUnknown": [ "Last attempted update on '{0}'", "from file '{0}'", "via '{0}'", ""],
+			"textUnknown": [ "We could not determine the last time your core code was updated" ],
+			"textTemplateGitDesc": "Git desc: '{0}'",
+			"button": "Close"
 		},
 		"overwrite": {
 			"title": "Overwrite file?",
@@ -123,9 +130,23 @@
 		},
 		"file_changed": {
 			"title": "File changed on disk",
-			"text": " has changed. Would you like to reload it?",
-			"button": "Discard changes and reload",
-			"cancel": "Don't reload, keep this version"
+			"text": "This file has been edited in another tab. Would you like to reload to discard your changes here and switch to the edited version?",
+			"button": "Yes, reload",
+			"cancel": "No, keep going"
+		},
+		"enter_readonly": {
+			"title": "This window is now read-only",
+			"text": "You have opened this file in more than one browser window. Because files can only be edited in one window at a time, this window is now in read-only mode.",
+			"button": "OK"
+		},
+		"exit_readonly": {
+			"title": "Exit read-only mode?",
+			"text": [
+				"To exit read-only mode and edit this file, click Reload. This will refresh the page and load the most recent version of this file, and you'll be able to edit it here.",
+				"To stay in read-only mode, click Cancel."
+			],
+			"submit": "Reload",
+			"cancel": "Cancel" 
 		}
 	},
   "tabs": {
@@ -147,7 +168,8 @@
 			"preview": "This is a preview - these objects are not editable in the browser.",
       "pd": {
         "error": "Rendering pd patch failed!"
-      }
+      },
+      "keypress_read_only": "This file is read-only. Open a file or refresh the page to keep editing."
 	},
 	"settings_view": {
 		"update": "Beginning update - this may take several minutes",

@@ -7,6 +7,7 @@ import * as readChunk from 'read-chunk';
 import * as fileType from 'file-type';
 import * as DecompressZip from 'decompress-zip';
 import * as fs from 'fs-extra-promise';
+import * as socket_manager from './SocketManager';
 
 let max_file_size = 52428800;	// bytes (50Mb)
 let max_preview_size = 524288000;	// bytes (500Mb)
@@ -78,6 +79,7 @@ export async function openFile(data: any){
 	}
 	let chunk: Buffer = await readChunk(file_path, 0, 4100);
 	let file_type = await fileType(chunk);
+	data.mtime = file_stat.mtime;
 	if (file_type && (file_type.mime.includes('image') || file_type.mime.includes('audio'))){
 		await file_manager.empty_directory(paths.media);
 		await file_manager.make_symlink(file_path, paths.media+data.newFile);
@@ -118,6 +120,11 @@ export async function openFile(data: any){
 	data.fileName = data.newFile;
 	data.newFile = undefined;
 	data.readOnly = false;
+	socket_manager.broadcast('file-opened', {
+		currentProject: data.currentProject,
+		fileName: data.fileName,
+		clientId: data.clientId,
+	});
 	return;
 }
 

@@ -11,6 +11,22 @@
     margin-top: 0;
     padding-bottom: 5px;
     padding-top: 5px;
+    &.read-only {
+      background-color: rgba($accent-red, .75);
+      height: 100%;
+      width: auto;
+      border: 0;
+      color: $white;
+      display: none;
+      padding: 0 10px;
+      &:hover {
+        background-color: rgba($accent-red, 1);
+        cursor: pointer;
+      }
+      &.active {
+        display: inline-block;
+      }
+    }
   }
   .current {
     font-family: poppins_regular;

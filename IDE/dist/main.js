@@ -34,6 +34,16 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __values = (this && this.__values) || function (o) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
+    if (m) return m.call(o);
+    return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var express = require("express");
 var http = require("http");
@@ -186,6 +196,143 @@ function setup_routes(app) {
     // gui
     app.use('/gui', express.static(paths.gui));
 }
+function get_bela_core_version() {
+    var _this = this;
+    return new Promise(function (resolve, reject) { return __awaiter(_this, void 0, void 0, function () {
+        var data, updateLog, e_1, tokens, matches, keys, tokens_1, tokens_1_1, str, n, reg, stat, dir, cmd, e_2, _a;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    data = {};
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, fs.readFileAsync(paths.update_log, 'utf8')];
+                case 2:
+                    updateLog = _b.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_1 = _b.sent();
+                    return [3 /*break*/, 4];
+                case 4:
+                    if (!updateLog) return [3 /*break*/, 7];
+                    tokens = updateLog.toString().split('\n');
+                    matches = [/^FILENAME=/, /^DATE=/, /^SUCCESS=/, /^METHOD=/];
+                    keys = ['fileName', 'date', 'success', 'method'];
+                    try {
+                        for (tokens_1 = __values(tokens), tokens_1_1 = tokens_1.next(); !tokens_1_1.done; tokens_1_1 = tokens_1.next()) {
+                            str = tokens_1_1.value;
+                            for (n in matches) {
+                                reg = matches[n];
+                                if (str.match(reg)) {
+                                    str = str.replace(reg, '').trim();
+                                    data[keys[n]] = str;
+                                }
+                            }
+                        }
+                    }
+                    catch (e_2_1) { e_2 = { error: e_2_1 }; }
+                    finally {
+                        try {
+                            if (tokens_1_1 && !tokens_1_1.done && (_a = tokens_1.return)) _a.call(tokens_1);
+                        }
+                        finally { if (e_2) throw e_2.error; }
+                    }
+                    if ('true' === data.success)
+                        data.success = 1;
+                    else
+                        data.success = 0;
+                    if (!(!data.fileName && !data.date && !data.method)) return [3 /*break*/, 7];
+                    // old update logs, for backwards compatibilty:
+                    // - guess date from file's modification time
+                    // - fix method
+                    // - guess fileName from backup path
+                    // - get success from legacy string
+                    data = {};
+                    return [4 /*yield*/, fs.statAsync(paths.update_log)];
+                case 5:
+                    stat = _b.sent();
+                    data.date = stat.mtime;
+                    data.method = 'make update (legacy)';
+                    return [4 /*yield*/, file_manager.read_directory(paths.update_backup)];
+                case 6:
+                    dir = _b.sent();
+                    if (dir && dir.length > 1)
+                        data.fileName = dir[0];
+                    if (-1 !== updateLog.indexOf('Update successful'))
+                        data.success = 1;
+                    else
+                        data.success = -1; //unknown
+                    _b.label = 7;
+                case 7:
+                    cmd = 'git -C ' + paths.Bela + ' describe --always --dirty';
+                    child_process.exec(cmd, function (err, stdout, stderr) {
+                        if (err) {
+                            console.log('error executing: ' + cmd);
+                        }
+                        var ret = {
+                            fileName: data.fileName,
+                            date: data.date,
+                            method: data.method,
+                            success: data.success,
+                            git_desc: stdout.trim(),
+                            log: updateLog,
+                        };
+                        resolve(ret);
+                    });
+                    return [2 /*return*/];
+            }
+        });
+    }); });
+}
+exports.get_bela_core_version = get_bela_core_version;
+function get_bela_image_version() {
+    return new Promise(function (resolve, reject) {
+        return __awaiter(this, void 0, void 0, function () {
+            var buffer, tokens, str, tokens_2, tokens_2_1, ret, e_3, e_4, _a;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        _b.trys.push([0, 2, , 3]);
+                        return [4 /*yield*/, fs.readFileAsync('/etc/motd', 'utf8')];
+                    case 1:
+                        buffer = _b.sent();
+                        if (!buffer) {
+                            resolve('');
+                            return [2 /*return*/];
+                        }
+                        tokens = buffer.toString().split('\n');
+                        try {
+                            for (tokens_2 = __values(tokens), tokens_2_1 = tokens_2.next(); !tokens_2_1.done; tokens_2_1 = tokens_2.next()) {
+                                str = tokens_2_1.value;
+                                if (str.match(/^Bela image.*/)) {
+                                    ret = str.replace(/^Bela image, /, '');
+                                    resolve(ret);
+                                    return [2 /*return*/];
+                                }
+                            }
+                        }
+                        catch (e_4_1) { e_4 = { error: e_4_1 }; }
+                        finally {
+                            try {
+                                if (tokens_2_1 && !tokens_2_1.done && (_a = tokens_2.return)) _a.call(tokens_2);
+                            }
+                            finally { if (e_4) throw e_4.error; }
+                        }
+                        return [3 /*break*/, 3];
+                    case 2:
+                        e_3 = _b.sent();
+                        console.log("ERROR: ", e_3);
+                        return [3 /*break*/, 3];
+                    case 3:
+                        resolve('');
+                        return [2 /*return*/];
+                }
+            });
+        });
+    });
+}
+exports.get_bela_image_version = get_bela_image_version;
 function get_xenomai_version() {
     if (globals.local_dev)
         return new Promise(function (resolve) { return resolve("3.0"); });

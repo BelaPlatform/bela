@@ -170,7 +170,7 @@ export async function read_directory(dir_path: string): Promise<string[]>{
 		out.sort(function(a, b) {
 			return a.toLowerCase().localeCompare(b.toLowerCase());
 		});
-	}
+	} catch (e) { }
 	finally{
 		lock.release();
 	}

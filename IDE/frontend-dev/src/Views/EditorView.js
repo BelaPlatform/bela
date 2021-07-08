@@ -17,6 +17,7 @@ class EditorView extends View {
 
 	constructor(className, models, data){
 		super(className, models);
+		this.projectModel = models[0];
 
 		this.highlights = {};
     var data = tmpData;
@@ -149,9 +150,13 @@ class EditorView extends View {
 	$('[data-img-display-parent], [data-audio-parent], [data-pd-svg-parent], [data-editor]') .removeClass('active');
     tmpData = data;
     tmpOpts = opts;
+
+	this.modelChanged({readOnly: true}, ['readOnly']);
+	this.modelChanged({openElsewhere: false}, ['openElsewhere']);
 	if(null === data)
 		return;
 
+		this.projectModel.setKey('readOnly', true);
 		if (!opts.fileType) opts.fileType = '0';
 
 		if (opts.fileType.indexOf('image') !== -1){
@@ -233,6 +238,7 @@ class EditorView extends View {
 
 			} else {
 
+				this.projectModel.setKey('readOnly', false);
 				// show the editor
         $('[data-editor]')
         .addClass('active');
@@ -291,11 +297,26 @@ class EditorView extends View {
 			enableLiveAutocompletion: (parseInt(status) === 1)
 		});
 	}
+
+	_openElsewhere(status){
+		const magic = 23985235;
+		this.projectModel.setKey('readOnly', status);
+		if(status) {
+			$('#editor').on('keypress', (e) => {
+				this.emit('console-brief', json.editor_view.keypress_read_only, magic);
+			});
+		} else {
+			$('#editor').off('keypress');
+		}
+	}
+
 	// readonly status has changed
 	_readOnly(status){
 		if (status){
+			$('.ace_content').addClass('editor_read_only');
 			this.editor.setReadOnly(true);
 		} else {
+			$('.ace_content').removeClass('editor_read_only');
 			this.editor.setReadOnly(false);
 		}
 	}

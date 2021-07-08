@@ -60,6 +60,12 @@ async function processUploads() {
 export async function upload(data: any){
 	let id = makePath(data);
 	queuedUploads.push(id, data);
+	// notify all clients this file has been edited
+	socket_manager.broadcast('file-changed', {
+		currentProject: data.currentProject,
+		fileName: data.newFile,
+		clientId: data.clientId,
+	});
 	if(!lock.acquired) {
 		await lock.acquire();
 		// If not already running, process uploads at the first chance

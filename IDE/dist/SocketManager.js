@@ -134,11 +134,15 @@ function init_message(socket) {
                     return [4 /*yield*/, IDE.board_detect().catch(function (e) { return console.log('error in board detect', e); })];
                 case 6:
                     _a.board_string = _b.sent();
-                    return [4 /*yield*/, IDE.get_xenomai_version()
-                        //	status : await process_manager.status()
-                    ];
+                    return [4 /*yield*/, IDE.get_xenomai_version()];
                 case 7:
-                    message = (_a.xenomai_version = _b.sent(),
+                    _a.xenomai_version = _b.sent();
+                    return [4 /*yield*/, IDE.get_bela_image_version()];
+                case 8:
+                    _a.bela_image_version = _b.sent();
+                    return [4 /*yield*/, IDE.get_bela_core_version()];
+                case 9:
+                    message = (_a.bela_core_version = _b.sent(),
                         _a);
                     socket.emit('init', message);
                     return [2 /*return*/];

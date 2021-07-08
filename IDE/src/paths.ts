@@ -13,6 +13,8 @@ export var startup_env: string;
 export var lockfile: string;
 export var xenomai_stat: string;
 export var update: string;
+export var update_backup: string;
+export var update_log: string;
 export var tmp: string;
 set_Bela("/root/Bela/");
 export function set_Bela(new_path: string){
@@ -31,6 +33,8 @@ export function set_Bela(new_path: string){
 	lockfile = Bela+'IDE/.lockfile';
 	xenomai_stat = '/proc/xenomai/sched/stat';
 	update = Bela+'updates/';
+	update_backup = Bela+'../_BelaUpdateBackup/updates/';
+	update_log = Bela+'../update.log';
 	tmp = "/tmp/";
 };
 export function set_xenomai_stat(new_path: string){ xenomai_stat = new_path; };

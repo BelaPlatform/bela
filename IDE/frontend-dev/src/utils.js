@@ -11,6 +11,15 @@ module.exports.sanitise = function (name, options){
 	return newName;
 }
 
+module.exports.formatString = function (format, vargs) {
+	var args = Array.prototype.slice.call(arguments, 1);
+	return format.replace(/{(\d+)}/g, function(match, number) {
+	  return typeof args[number] != 'undefined'
+		? args[number]
+		: match ;
+	});
+}
+
 // add onClick events for accordion functionality to relevant elements of the
 // provided elements
 module.exports.addAccordionEvent = function(elements) {

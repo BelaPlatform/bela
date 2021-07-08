@@ -52,6 +52,7 @@ var paths = require("./paths");
 var readChunk = require("read-chunk");
 var fileType = require("file-type");
 var DecompressZip = require("decompress-zip");
+var socket_manager = require("./SocketManager");
 var max_file_size = 52428800; // bytes (50Mb)
 var max_preview_size = 524288000; // bytes (500Mb)
 function emptyObject(obj) {
@@ -152,6 +153,7 @@ function openFile(data) {
                     return [4 /*yield*/, fileType(chunk)];
                 case 14:
                     file_type = _e.sent();
+                    data.mtime = file_stat.mtime;
                     if (!(file_type && (file_type.mime.includes('image') || file_type.mime.includes('audio')))) return [3 /*break*/, 17];
                     return [4 /*yield*/, file_manager.empty_directory(paths.media)];
                 case 15:
@@ -204,6 +206,11 @@ function openFile(data) {
                     data.fileName = data.newFile;
                     data.newFile = undefined;
                     data.readOnly = false;
+                    socket_manager.broadcast('file-opened', {
+                        currentProject: data.currentProject,
+                        fileName: data.fileName,
+                        clientId: data.clientId,
+                    });
                     return [2 /*return*/];
             }
         });

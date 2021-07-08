@@ -125,6 +125,16 @@ editorView.on('compare-files', compare => {
 	// unset the interval
 	if (!compare) setModifiedTimeInterval(undefined);
 });
+editorView.on('console-brief', (text, id) => {
+	consoleView.emit('openNotification', {
+		func: 'editor',
+		timestamp: id,
+		text
+	});
+	setTimeout(function (id) {
+		consoleView.emit('closeNotification', {timestamp: id, fulfillMessage: ''});
+	}.bind(null, id), 500);
+});
 
 // toolbar view
 var toolbarView = new (require('./Views/ToolbarView'))('toolBar', [models.project, models.error, models.status, models.settings]);
@@ -202,7 +212,18 @@ var listFilesIntervalMs = 5000;
 var listFilesInterval = 0;
 
 // setup socket
-var socket = io('/IDE');
+var _socket = io('/IDE');
+// sub- minimal wrapper for socket.io to inject clientId
+var socket = {
+	on: (what, cb) => _socket.on(what, cb),
+	io: _socket.io,
+	emit: (what, data) => {
+		socket.id = _socket.id;
+		if("object" === typeof(data) && !Array.isArray(data))
+			data.clientId = socket.id;
+		_socket.emit(what, data);
+	},
+}
 
 // socket events
 socket.on('report-error', (error) => consoleView.emit('warn', error.message || error) );
@@ -220,6 +241,8 @@ socket.on('init', (data) => {
 
 	$('[data-run-on-boot]').val(data.boot_project);
 
+	models.settings.setKey('belaCoreVersion', data.bela_core_version);
+	models.settings.setKey('belaImageVersion', data.bela_image_version);
 	models.settings.setKey('xenomaiVersion', data.xenomai_version);
 
 	console.log('running on', data.board_string);
@@ -255,6 +278,9 @@ socket.on('init', (data) => {
 // project events
 socket.on('project-data', (data) => {
 
+	// if the file gets to us, it's because we requested it,
+	// so we are going to use it regardless of the current state
+	models.project.setKey('openElsewhere', false);
 	consoleView.emit('closeNotification', data);
 	models.project.setData(data);
 
@@ -305,14 +331,33 @@ socket.on('disconnect', (reason) => {
 	models.project.setKey('readOnly', true);
 });
 
-socket.on('file-changed', (project, fileName) => {
-	if (project === models.project.getKey('currentProject') && fileName === models.project.getKey('fileName')){
-		console.log('file changed!');
-		models.project.setKey('readOnly', true);
-		models.project.setKey('fileData', 'This file has been edited in another window. Reopen the file to continue');
-		//socket.emit('project-event', {func: 'openFile', currentProject: project, fileName: fileName});
+socket.on('file-opened', (data) => {
+	fileOpenedOrChanged(data, 0);
+})
+
+socket.on('file-changed', (data) => {
+	fileOpenedOrChanged(data, 1);
+})
+
+function fileOpenedOrChanged(data, changed) {
+	let str = changed ? 'changed' : 'opened';
+	let project = data.currentProject;
+	let fileName = data.fileName;
+	let clientId = data.clientId;
+	// if someone else opened or changed our file
+	// and we arenot ignoring it
+	if (project === models.project.getKey('currentProject')
+			&& fileName === models.project.getKey('fileName')
+			&& clientId != socket.id
+			&& !models.project.getKey('openElsewhere')
+			&& !models.project.getKey('readOnly')
+	) {
+		if(changed)
+			fileChangedPopup(fileName);
+		else
+			enterReadonlyPopup(fileName);
 	}
-});
+}
 
 // run-on-boot
 socket.on('run-on-boot-log', text => consoleView.emit('log', text) );
@@ -361,37 +406,74 @@ function setModifiedTimeInterval(mtime){
 // current file changed
 var fileChangedPopupVisible = false;
 function fileChangedPopup(fileName){
-
 	if (fileChangedPopupVisible) return;
 
-	popup.title(json.popups.file_changed.title);
-	popup.subtitle(fileName + json.popups.file_changed.text);
-
-	var form = [];
-	form.push('<button type="submit" class="button popup-save">' + json.popups.reload_file.button + '</button>');
-	form.push('<button type="button" class="button cancel">' + json.popups.reload_file.cancel + '</button>');
-
-	popup.form.append(form.join('')).off('submit').on('submit', e => {
-		fileChangedPopupVisible = false;
-		e.preventDefault();
-		var data = {
-			func			: 'openProject',
-			currentProject	: models.project.getKey('currentProject'),
-			timestamp		: performance.now()
-		};
-		socket.emit('project-event', data);
-		consoleView.emit('openNotification', data);
-		popup.hide();
-	});
-
-	popup.find('.cancel').on('click', () => {
-		popup.hide();
-		fileChangedPopupVisible = false;
-		editorView.emit('upload', editorView.getData());
-	});
-
-	popup.show();
+	var strings = Object.assign({}, json.popups.file_changed); // make a copy ...
+	strings.text = fileName + strings.text; // ... so we can modify it
+	popup.twoButtons(strings,
+		e => {
+			fileChangedPopupVisible = false;
+			e.preventDefault();
+			var data = {
+				func			: 'openProject',
+				currentProject	: models.project.getKey('currentProject'),
+				timestamp		: performance.now()
+			};
+			socket.emit('project-event', data);
+			consoleView.emit('openNotification', data);
+		},
+		() => {
+			fileChangedPopupVisible = false;
+			editorView.emit('upload', editorView.getData());
+		}
+	);
 	fileChangedPopupVisible = true;
+}
+
+function enterReadonlyPopup(fileName) {
+	if(fileChangedPopupVisible) return; //	 changed file takes priority
+	var strings = {};
+	strings.title = json.popups.enter_readonly.title;
+	strings.text = json.popups.enter_readonly.text;
+	strings.button = json.popups.enter_readonly.button;
+	strings.cancel = json.popups.enter_readonly.cancel;
+
+	// Click the OK button to put page in read-only
+	popup.oneButton(strings,
+		() => {
+			models.project.setKey('openElsewhere', true);
+			setReadOnlyStatus(true);
+		}
+	);
+}
+
+function setReadOnlyStatus(status) {
+	if (status) {
+		$('div.read-only').addClass('active');
+		$('div.read-only').click(() => exitReadonlyPopup());
+	} else {
+		$('div.read-only').removeClass('active');
+	}
+}
+
+
+function exitReadonlyPopup() {
+	var strings = {};
+	strings.title = json.popups.exit_readonly.title;
+	strings.code = '<p>' + json.popups.exit_readonly.text[0] + '</p><p>' + json.popups.exit_readonly.text[1] + '</p>';
+	strings.cancel = json.popups.exit_readonly.cancel;
+	strings.button = json.popups.exit_readonly.submit;
+	popup.twoButtons(strings,
+		// on Submit:
+		e => {
+			setReadOnlyStatus(false);
+			window.location.reload();
+		},
+		// on Cancel:
+		() => {
+			popup.hide();
+		}
+	);
 }
 
 // model events

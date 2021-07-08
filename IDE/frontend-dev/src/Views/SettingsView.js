@@ -1,7 +1,10 @@
 var View = require('./View');
 var popup = require('../popup');
 var json = require('../site-text.json');
+var utils = require('../utils');
 
+var belaCoreVersionString = "Unknown";
+var belaImageVersionString = "Unknown";
 var inputChangedTimeout;
 
 class SettingsView extends View {
@@ -58,7 +61,6 @@ class SettingsView extends View {
 		var func = data.func;
     var key = data.key;
     var val = $element.val();
-    console.log(func, key, val);
 		if (func && this[func]){
       if (val) {
         this[func](func, key, $element.val());
@@ -433,5 +435,60 @@ class SettingsView extends View {
       $('[data-accordion="' + exceptions['sections'][sect] + '"]').css('display', 'none');
 		}
 	}
+
+	versionPopup() {
+		var strings = {};
+		strings.title = json.popups.version.title;
+		strings.button = json.popups.version.button;
+		// popup.code is the only one that accepts HTML, so we have to use that
+		// to make it pickup the line breaks
+		strings.code = utils.formatString('<p>{0}<br />{1}</p><p>{2}<br />{3}</p>',
+			json.popups.version.image_version_label, belaImageVersionString,
+			json.popups.version.core_version_label, belaCoreVersionString);
+		popup.ok(strings);
+	}
+
+	_belaCoreVersion(ver) {
+		var format = utils.formatString;
+		var s = [];
+		var templates = json.popups.version;
+		if(ver.date || ver.fileName) {
+			var t;
+			switch(ver.success) {
+				case 0:
+					t = templates.textTemplateFailed;
+					break;
+				case 1:
+					t = templates.textTemplateSuccess;
+					break;
+				default:
+				case -1:
+					t = templates.textTemplateUnknown; // unknown success (e.g.: incomplete legacy log)
+					break;
+			}
+			if(ver.date) {
+				var date = new Date(ver.date);
+				var dateString = date.getDay() + ' ' + date.toLocaleString('default', {month: "short"}) + ' '
+								+ date.getFullYear() + ' ' + date.toTimeString().replace(/GMT.*/, '');
+				s.push(format(t[0], dateString));
+			}
+			if(ver.fileName)
+				s.push(format(t[1], ver.fileName));
+			if(ver.method)
+				s.push(format(t[2], ver.method));
+			s.push(t[3]);
+		} else {
+			s.push(templates.textUnknown); // no info available
+		}
+		if(ver.git_desc)
+			s.push(format(templates.textTemplateGitDesc, ver.git_desc));
+		belaCoreVersionString = s.join('<br \>');
+	}
+
+	_belaImageVersion(ver){
+		if(ver)
+			belaImageVersionString = ver;
+	}
+
 }
 module.exports = SettingsView;

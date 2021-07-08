@@ -380,6 +380,8 @@ module.exports = CircularBuffer;
 },{}],3:[function(require,module,exports){
 'use strict';
 
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
 //// IDE controller
 module.exports = {};
 
@@ -522,6 +524,16 @@ editorView.on('compare-files', function (compare) {
 	// unset the interval
 	if (!compare) setModifiedTimeInterval(undefined);
 });
+editorView.on('console-brief', function (text, id) {
+	consoleView.emit('openNotification', {
+		func: 'editor',
+		timestamp: id,
+		text: text
+	});
+	setTimeout(function (id) {
+		consoleView.emit('closeNotification', { timestamp: id, fulfillMessage: '' });
+	}.bind(null, id), 500);
+});
 
 // toolbar view
 var toolbarView = new (require('./Views/ToolbarView'))('toolBar', [models.project, models.error, models.status, models.settings]);
@@ -614,10 +626,21 @@ var listFilesIntervalMs = 5000;
 var listFilesInterval = 0;
 
 // setup socket
-var socket = io('/IDE');
+var _socket = io('/IDE');
+// sub- minimal wrapper for socket.io to inject clientId
+var socket = {
+	on: function on(what, cb) {
+		return _socket.on(what, cb);
+	},
+	io: _socket.io,
+	emit: function emit(what, data) {
+		socket.id = _socket.id;
+		if ("object" === (typeof data === 'undefined' ? 'undefined' : _typeof(data)) && !Array.isArray(data)) data.clientId = socket.id;
+		_socket.emit(what, data);
+	}
 
-// socket events
-socket.on('report-error', function (error) {
+	// socket events
+};socket.on('report-error', function (error) {
 	return consoleView.emit('warn', error.message || error);
 });
 
@@ -634,6 +657,8 @@ socket.on('init', function (data) {
 
 	$('[data-run-on-boot]').val(data.boot_project);
 
+	models.settings.setKey('belaCoreVersion', data.bela_core_version);
+	models.settings.setKey('belaImageVersion', data.bela_image_version);
 	models.settings.setKey('xenomaiVersion', data.xenomai_version);
 
 	console.log('running on', data.board_string);
@@ -670,6 +695,9 @@ socket.on('init', function (data) {
 // project events
 socket.on('project-data', function (data) {
 
+	// if the file gets to us, it's because we requested it,
+	// so we are going to use it regardless of the current state
+	models.project.setKey('openElsewhere', false);
 	consoleView.emit('closeNotification', data);
 	models.project.setData(data);
 
@@ -723,14 +751,25 @@ socket.on('disconnect', function (reason) {
 	models.project.setKey('readOnly', true);
 });
 
-socket.on('file-changed', function (project, fileName) {
-	if (project === models.project.getKey('currentProject') && fileName === models.project.getKey('fileName')) {
-		console.log('file changed!');
-		models.project.setKey('readOnly', true);
-		models.project.setKey('fileData', 'This file has been edited in another window. Reopen the file to continue');
-		//socket.emit('project-event', {func: 'openFile', currentProject: project, fileName: fileName});
-	}
+socket.on('file-opened', function (data) {
+	fileOpenedOrChanged(data, 0);
 });
+
+socket.on('file-changed', function (data) {
+	fileOpenedOrChanged(data, 1);
+});
+
+function fileOpenedOrChanged(data, changed) {
+	var str = changed ? 'changed' : 'opened';
+	var project = data.currentProject;
+	var fileName = data.fileName;
+	var clientId = data.clientId;
+	// if someone else opened or changed our file
+	// and we arenot ignoring it
+	if (project === models.project.getKey('currentProject') && fileName === models.project.getKey('fileName') && clientId != socket.id && !models.project.getKey('openElsewhere') && !models.project.getKey('readOnly')) {
+		if (changed) fileChangedPopup(fileName);else fileOpenedPopup(fileName);
+	}
+}
 
 // run-on-boot
 socket.on('run-on-boot-log', function (text) {
@@ -792,17 +831,11 @@ function setModifiedTimeInterval(mtime) {
 // current file changed
 var fileChangedPopupVisible = false;
 function fileChangedPopup(fileName) {
-
 	if (fileChangedPopupVisible) return;
 
-	popup.title(json.popups.file_changed.title);
-	popup.subtitle(fileName + json.popups.file_changed.text);
-
-	var form = [];
-	form.push('<button type="submit" class="button popup-save">' + json.popups.reload_file.button + '</button>');
-	form.push('<button type="button" class="button cancel">' + json.popups.reload_file.cancel + '</button>');
-
-	popup.form.append(form.join('')).off('submit').on('submit', function (e) {
+	var strings = Object.assign({}, json.popups.file_changed); // make a copy ...
+	strings.text = fileName + strings.text; // ... so we can modify it
+	popup.submitCancel(strings, function (e) {
 		fileChangedPopupVisible = false;
 		e.preventDefault();
 		var data = {
@@ -812,17 +845,30 @@ function fileChangedPopup(fileName) {
 		};
 		socket.emit('project-event', data);
 		consoleView.emit('openNotification', data);
-		popup.hide();
-	});
-
-	popup.find('.cancel').on('click', function () {
-		popup.hide();
+	}, function () {
 		fileChangedPopupVisible = false;
 		editorView.emit('upload', editorView.getData());
 	});
-
-	popup.show();
 	fileChangedPopupVisible = true;
+}
+
+function fileOpenedPopup(fileName) {
+	if (fileChangedPopupVisible) return; // changed file takes priority
+	var strings = Object.assign({}, json.popups.file_opened); // make a copy ...
+	strings.text = fileName + strings.text; // ... so we can modify it
+
+	popup.submitCancel(strings, function (e) {
+		e.preventDefault();
+		var data = {
+			func: 'openProject',
+			currentProject: models.project.getKey('currentProject'),
+			timestamp: performance.now()
+		};
+		socket.emit('project-event', data);
+		consoleView.emit('openNotification', data);
+	}, function () {
+		models.project.setKey('openElsewhere', true);
+	});
 }
 
 // model events
@@ -1328,7 +1374,9 @@ var ConsoleView = function (_View) {
 			if (data.error) {
 				_console.reject(' ' + data.error, data.timestamp);
 			} else {
-				_console.fulfill(' done', data.timestamp);
+				var fulfillMessage = ' done';
+				if (typeof data.fulfillMessage !== 'undefined') fulfillMessage = data.fulfillMessage;
+				_console.fulfill(fulfillMessage, data.timestamp);
 			}
 		}
 	}, {
@@ -1827,6 +1875,8 @@ var EditorView = function (_View) {
 
 		var _this = _possibleConstructorReturn(this, (EditorView.__proto__ || Object.getPrototypeOf(EditorView)).call(this, className, models));
 
+		_this.projectModel = models[0];
+
 		_this.highlights = {};
 		var data = tmpData;
 		var opts = tmpOpts;
@@ -1960,8 +2010,12 @@ var EditorView = function (_View) {
 			$('[data-img-display-parent], [data-audio-parent], [data-pd-svg-parent], [data-editor]').removeClass('active');
 			tmpData = data;
 			tmpOpts = opts;
+
+			this.modelChanged({ readOnly: true }, ['readOnly']);
+			this.modelChanged({ openElsewhere: false }, ['openElsewhere']);
 			if (null === data) return;
 
+			this.projectModel.setKey('readOnly', true);
 			if (!opts.fileType) opts.fileType = '0';
 
 			if (opts.fileType.indexOf('image') !== -1) {
@@ -2032,6 +2086,7 @@ var EditorView = function (_View) {
 					this.emit('compare-files', true);
 				} else {
 
+					this.projectModel.setKey('readOnly', false);
 					// show the editor
 					$('[data-editor]').addClass('active');
 
@@ -2093,14 +2148,32 @@ var EditorView = function (_View) {
 				enableLiveAutocompletion: parseInt(status) === 1
 			});
 		}
+	}, {
+		key: '_openElsewhere',
+		value: function _openElsewhere(status) {
+			var _this3 = this;
+
+			var magic = 23985235;
+			this.projectModel.setKey('readOnly', status);
+			if (status) {
+				$('#editor').on('keypress', function (e) {
+					_this3.emit('console-brief', json.editor_view.keypress_read_only, magic);
+				});
+			} else {
+				$('#editor').off('keypress');
+			}
+		}
+
 		// readonly status has changed
 
 	}, {
 		key: '_readOnly',
 		value: function _readOnly(status) {
 			if (status) {
+				$('.ace_content').addClass('editor_read_only');
 				this.editor.setReadOnly(true);
 			} else {
+				$('.ace_content').removeClass('editor_read_only');
 				this.editor.setReadOnly(false);
 			}
 		}
@@ -2229,17 +2302,18 @@ var FileView = function (_View) {
 			project: ""
 		};
 
+		var overlayActiveClass = 'active-drag-upload';
 		// drag and drop file upload on editor
 		var overlay = $('[data-overlay]');
 		overlay.on('dragleave', function (e) {
-			overlay.removeClass('drag-upload').removeClass('active');
+			overlay.removeClass(overlayActiveClass);
 		});
 		$('body').on('dragenter dragover drop', function (e) {
 			if (!isDragEvent(e, "Files")) return;
 			e.stopPropagation();
 			e.preventDefault();
 			if (e.type == 'dragenter') {
-				overlay.addClass('active').addClass('drag-upload');
+				overlay.addClass(overlayActiveClass);
 			}
 			if (e.type === 'drop') {
 				for (var i = 0; i < e.originalEvent.dataTransfer.files.length; i++) {
@@ -2250,7 +2324,7 @@ var FileView = function (_View) {
 							var that = _this;
 							overlay.addClass('no');
 							setTimeout(function () {
-								overlay.removeClass('no').removeClass('drag-upload');
+								overlay.removeClass('no').removeClass(overlayActiveClass);
 								that.uploadSizeError();
 							}, 1500);
 							return {
@@ -2264,7 +2338,7 @@ var FileView = function (_View) {
 					}
 					if (i == e.originalEvent.dataTransfer.files.length - 1) {
 						setTimeout(function () {
-							overlay.removeClass('active').removeClass('drag-upload').removeClass('no');
+							overlay.removeClass(overlayActiveClass).removeClass('no');
 						}, 1500);
 					}
 				}
@@ -3944,7 +4018,10 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var View = require('./View');
 var popup = require('../popup');
 var json = require('../site-text.json');
+var utils = require('../utils');
 
+var belaCoreVersionString = "Unknown";
+var belaImageVersionString = "Unknown";
 var inputChangedTimeout;
 
 var SettingsView = function (_View) {
@@ -4011,7 +4088,6 @@ var SettingsView = function (_View) {
 			var func = data.func;
 			var key = data.key;
 			var val = $element.val();
-			console.log(func, key, val);
 			if (func && this[func]) {
 				if (val) {
 					this[func](func, key, $element.val());
@@ -4414,6 +4490,56 @@ var SettingsView = function (_View) {
 				$('[data-accordion="' + exceptions['sections'][sect] + '"]').css('display', 'none');
 			}
 		}
+	}, {
+		key: 'versionPopup',
+		value: function versionPopup() {
+			var strings = {};
+			strings.title = json.popups.version.title;
+			strings.button = json.popups.version.button;
+			// popup.code is the only one that accepts HTML, so we have to use that
+			// to make it pickup the line breaks
+			strings.code = utils.formatString('<p>{0}<br />{1}</p><p>{2}<br />{3}</p>', json.popups.version.image_version_label, belaImageVersionString, json.popups.version.core_version_label, belaCoreVersionString);
+			popup.ok(strings);
+		}
+	}, {
+		key: '_belaCoreVersion',
+		value: function _belaCoreVersion(ver) {
+			var format = utils.formatString;
+			var s = [];
+			var templates = json.popups.version;
+			if (ver.date || ver.fileName) {
+				var t;
+				switch (ver.success) {
+					case 0:
+						t = templates.textTemplateFailed;
+						break;
+					case 1:
+						t = templates.textTemplateSuccess;
+						break;
+					default:
+					case -1:
+						t = templates.textTemplateUnknown; // unknown success (e.g.: incomplete legacy log)
+						break;
+				}
+				if (ver.date) {
+					var date = new Date(ver.date);
+					var dateString = date.getDay() + ' ' + date.toLocaleString('default', { month: "short" }) + ' ' + date.getFullYear() + ' ' + date.toTimeString().replace(/GMT.*/, '');
+					s.push(format(t[0], dateString));
+				}
+				if (ver.fileName) s.push(format(t[1], ver.fileName));
+				if (ver.method) s.push(format(t[2], ver.method));
+				s.push(t[3]);
+			} else {
+				s.push(templates.textUnknown); // no info available
+			}
+			if (ver.git_desc) s.push(format(templates.textTemplateGitDesc, ver.git_desc));
+			belaCoreVersionString = s.join('<br \>');
+		}
+	}, {
+		key: '_belaImageVersion',
+		value: function _belaImageVersion(ver) {
+			if (ver) belaImageVersionString = ver;
+		}
 	}]);
 
 	return SettingsView;
@@ -4421,7 +4547,7 @@ var SettingsView = function (_View) {
 
 module.exports = SettingsView;
 
-},{"../popup":18,"../site-text.json":19,"./View":14}],12:[function(require,module,exports){
+},{"../popup":18,"../site-text.json":19,"../utils":20,"./View":14}],12:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -5896,14 +6022,15 @@ var codeEl = parent.find('code');
 var bodyEl = parent.find('p');
 var _formEl = parent.find('form');
 
+var overlayActiveClass = 'active-popup';
 var popup = {
 	show: function show() {
-		_overlay.addClass('active');
+		_overlay.addClass(overlayActiveClass);
 		parent.addClass('active');
 		content.find('input[type=text]').first().trigger('focus');
 	},
 	hide: function hide(keepOverlay) {
-		if (keepOverlay !== 'keep overlay') _overlay.removeClass('active');
+		if (keepOverlay !== 'keep overlay') _overlay.removeClass(overlayActiveClass);
 		parent.removeClass('active');
 		titleEl.removeClass('error');
 		titleEl.empty();
@@ -5914,7 +6041,53 @@ var popup = {
 		_formEl.empty();
 	},
 	overlay: function overlay() {
-		_overlay.toggleClass('active');
+		_overlay.toggleClass(overlayActiveClass);
+	},
+	initWithStrings: function initWithStrings(strings) {
+		popup.hide();
+		if (strings.title) popup.title(strings.title);
+		if (strings.body) popup.body('a<br />\nb<br />\n' + strings.body);
+		if (strings.text) popup.subtitle(strings.text);
+		if (strings.code) popup.code(strings.code);
+	},
+
+	// shorthands for common popup configurations.
+	// strings may have fields: title, text(subtitle), code, body, button, cancel
+
+	// a popup with two buttons which will hide itself and call the
+	// provided callbacks on button presses.
+	submitCancel: function submitCancel(strings, onSubmit, onCancel) {
+		this.initWithStrings(strings);
+		var form = [];
+		form.push('<button type="submit" class="button popup-save">' + strings.button + '</button>');
+		form.push('<button type="button" class="button cancel">' + strings.cancel + '</button>');
+
+		popup.form.empty().append(form.join('')).off('submit').on('submit', function (e) {
+			popup.hide();
+			onSubmit(e);
+		});
+		popup.find('.cancel').on('click', function () {
+			popup.hide();
+			onCancel();
+		});
+		popup.show();
+	},
+
+
+	// a popup with one button which will hide itself upon click
+	ok: function ok(strings) {
+		this.initWithStrings(strings);
+		var button;
+		if (strings.button) button = strings.button;else button = "OK";
+
+		var form = [];
+		form.push('<button type="submit" class="button popup cancel">' + button + '</button>');
+		popup.form.empty().append(form.join('')).off('submit').on('submit', function (e) {
+			e.preventDefault();
+			popup.hide();
+		});
+		popup.show();
+		popup.find('.cancel').trigger('focus');
 	},
 
 
@@ -5980,6 +6153,7 @@ function example(cb, arg, delay, cancelCb) {
 
 },{}],19:[function(require,module,exports){
 module.exports={
+    "locale": "en",
 	"popups": {
     "generic": {
       "cancel": "Cancel"
@@ -6074,10 +6248,16 @@ module.exports={
 			"text": "Bela was born out of research at Queen Mary University of London. It is developed and supported by the Bela team, and sold by Augmented Instruments Ltd in London, UK. For more information, please visit bela.io.",
 			"button": "Close"
 		},
-		"file_changed": {
-			"title": "File changed on disk",
-			"text": "Would you like to reload?",
-			"button": "Reload"
+		"version": {
+			"title": "Version details",
+			"image_version_label": "Image: ",
+			"core_version_label": "Core code: ",
+			"textTemplateSuccess": [ "Last updated on '{0}'", "from file '{0}'", "via '{0}'", "Update was successful"],
+			"textTemplateFailed": [ "Last attempted update on '{0}'", "from file '{0}'", "via '{0}'", "Update failed"],
+			"textTemplateUnknown": [ "Last attempted update on '{0}'", "from file '{0}'", "via '{0}'", ""],
+			"textUnknown": [ "We could not determine the last time your core code was updated" ],
+			"textTemplateGitDesc": "Git desc: '{0}'",
+			"button": "Close"
 		},
 		"overwrite": {
 			"title": "Overwrite file?",
@@ -6107,6 +6287,12 @@ module.exports={
 			"text": " has changed. Would you like to reload it?",
 			"button": "Discard changes and reload",
 			"cancel": "Don't reload, keep this version"
+		},
+		"file_opened": {
+			"title": "File opened in another tab",
+			"text": " has been opened in another tab. Only one tab at a time can edit the file.",
+			"button": "Keep editing here",
+			"cancel": "Set this tab to read-only. Refresh or reopen the file to edit again."
 		}
 	},
   "tabs": {
@@ -6128,7 +6314,8 @@ module.exports={
 			"preview": "This is a preview - these objects are not editable in the browser.",
       "pd": {
         "error": "Rendering pd patch failed!"
-      }
+      },
+      "keypress_read_only": "This file is read-only. Open a file or refresh the page to keep editing."
 	},
 	"settings_view": {
 		"update": "Beginning update - this may take several minutes",
@@ -6190,6 +6377,13 @@ module.exports.sanitise = function (name, options) {
 	if (!isPath) newName = newName.replace(/[\/]/g, '_');
 	console.log("FROM: ", name, "SANITISED: ", newName);
 	return newName;
+};
+
+module.exports.formatString = function (format, vargs) {
+	var args = Array.prototype.slice.call(arguments, 1);
+	return format.replace(/{(\d+)}/g, function (match, number) {
+		return typeof args[number] != 'undefined' ? args[number] : match;
+	});
 };
 
 // add onClick events for accordion functionality to relevant elements of the

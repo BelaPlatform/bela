@@ -128,7 +128,10 @@ class ConsoleView extends View{
 		if (data.error){
 			_console.reject(' '+data.error, data.timestamp);
 		} else {
-			_console.fulfill(' done', data.timestamp);
+			let fulfillMessage = ' done';
+			if(typeof(data.fulfillMessage) !== 'undefined')
+				fulfillMessage = data.fulfillMessage;
+			_console.fulfill(fulfillMessage, data.timestamp);
 		}
 	}
 

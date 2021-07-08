@@ -17,6 +17,8 @@ function set_Bela(new_path) {
     exports.lockfile = exports.Bela + 'IDE/.lockfile';
     exports.xenomai_stat = '/proc/xenomai/sched/stat';
     exports.update = exports.Bela + 'updates/';
+    exports.update_backup = exports.Bela + '../_BelaUpdateBackup/updates/';
+    exports.update_log = exports.Bela + '../update.log';
     exports.tmp = "/tmp/";
 }
 exports.set_Bela = set_Bela;

@@ -141,6 +141,12 @@ function upload(data) {
                 case 0:
                     id = makePath(data);
                     queuedUploads.push(id, data);
+                    // notify all clients this file has been edited
+                    socket_manager.broadcast('file-changed', {
+                        currentProject: data.currentProject,
+                        fileName: data.newFile,
+                        clientId: data.clientId,
+                    });
                     if (!!lock.acquired) return [3 /*break*/, 2];
                     return [4 /*yield*/, lock.acquire()];
                 case 1:

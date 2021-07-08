@@ -131,6 +131,93 @@ function setup_routes(app: express.Application){
 	app.use('/gui', express.static(paths.gui));
 }
 
+export function get_bela_core_version(): Promise<util.Bela_Core_Version_Data>{
+	return new Promise(async (resolve, reject) => {
+		var data : any = {};
+		var updateLog : string;
+		try {
+			updateLog = await fs.readFileAsync(paths.update_log, 'utf8');
+		} catch (e) { }
+		if(updateLog) {
+			var tokens = updateLog.toString().split('\n');
+			// new update logs
+			var matches = [ /^FILENAME=/, /^DATE=/, /^SUCCESS=/, /^METHOD=/];
+			var keys = ['fileName', 'date', 'success', 'method'];
+			for(let str of tokens) {
+				for(let n in matches) {
+					var reg = matches[n];
+					if(str.match(reg)) {
+						str = str.replace(reg, '').trim();
+						data[keys[n]] = str;
+					}
+				}
+			}
+			if('true' === data.success)
+				data.success = 1;
+			else
+				data.success = 0;
+
+			if(!data.fileName && !data.date && !data.method){
+				// old update logs, for backwards compatibilty:
+				// - guess date from file's modification time
+				// - fix method
+				// - guess fileName from backup path
+				// - get success from legacy string
+				data = {};
+				var stat = await fs.statAsync(paths.update_log);
+				data.date = stat.mtime;
+				data.method = 'make update (legacy)';
+				var dir = await file_manager.read_directory(paths.update_backup);
+				if(dir && dir.length > 1)
+					data.fileName = dir[0];
+				if(-1 !== updateLog.indexOf('Update successful'))
+					data.success = 1;
+				else
+					data.success = -1; //unknown
+			}
+		}
+		var cmd = 'git -C '+paths.Bela+' describe --always --dirty';
+		child_process.exec(cmd,
+			(err, stdout, stderr) => {
+			if (err){
+				console.log('error executing: ' + cmd);
+			}
+			var ret : util.Bela_Core_Version_Data = {
+				fileName: data.fileName,
+				date: data.date,
+				method: data.method,
+				success: data.success,
+				git_desc: stdout.trim(),
+				log: updateLog,
+			}
+			resolve(ret);
+		});
+	});
+}
+
+export function get_bela_image_version(): Promise<string>{
+	return new Promise(async function(resolve, reject){
+		try {
+			var buffer = await fs.readFileAsync('/etc/motd', 'utf8');
+			if(!buffer) {
+				resolve('');
+				return;
+			}
+			var tokens = buffer.toString().split('\n');
+			var str : string;
+			for(str of tokens) {
+				if(str.match(/^Bela image.*/)) {
+					var ret = str.replace(/^Bela image, /, '');
+					resolve(ret);
+					return;
+				}
+			}
+		} catch (e) {
+			console.log("ERROR: ", e);
+		}
+		resolve('');
+	});
+}
 export function get_xenomai_version(): Promise<string>{
 	if(globals.local_dev)
 		return new Promise((resolve) => resolve("3.0"));
