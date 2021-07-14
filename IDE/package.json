@@ -49,6 +49,6 @@
     "pidtree": "^0.3.0",
     "read-chunk": "^2.1.0",
     "await-lock": "",
-    "socket.io": "2.0.3"
+    "socket.io": "2.4.0"
   }
 }
