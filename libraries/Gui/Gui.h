@@ -50,7 +50,7 @@ class Gui
 		 * @param port Port on which to stablish the the web socket communication.
 		 * @param address Base address used to stalish the web socket communication.
 		 * @param projectName Project name to be sent to via the web-socket to the client.
-		 * @returns O if web sockets have been configured.
+		 * @returns 0 if web sockets have been configured.
 		 **/
 		int setup(std::string projectName, unsigned int port = 5555, std::string address = "gui");
 		void cleanup();
@@ -62,13 +62,12 @@ class Gui
 		 * Sets the buffer type and size of the container.
 		 * @param bufferType type of the buffer, can be float (f), int (i) or char (c)
 		 * @param size Maximum number of elements that the buffer can hold.
-		 * @retur Buffer ID, generated automatically based on the number of buffers and
+		 * @returns Buffer ID, generated automatically based on the number of buffers and
 		 * 	the order on which they have been created.
 		 **/
 		unsigned int setBuffer(char bufferType, unsigned int size);
 		/**
-		 * Returns a DataBuffer object which represents a typed buffer holding a number
-		 * of bytes that an be retrieved in different formats.
+		 * Get the DataBuffer object corresponding to the identifier that was assigned to it during creation 
 		 * @param bufferId: buffer ID
 		 **/
 		DataBuffer& getDataBuffer(unsigned int bufferId);
@@ -112,7 +111,7 @@ class Gui
 			userBinaryData = customBinaryData;
 		};
 		/** Sends a JSON value to the control websocket.
-		 * Returns 0 on success, or an error code otherwise.
+		 * @returns 0 on success, or an error code otherwise.
 		 * */
 		int sendControl(JSONValue* root);
 
